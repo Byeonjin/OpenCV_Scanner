@@ -20,21 +20,19 @@ def reshapeImg(img, size_w):
 def setRect(img, pts):
     (x, y, w, h) = cv.boundingRect(pts)
 
-    (x, y, w, h) = (int(x* 6.048),
-                    int(y* 6.048),
-                    int(w* 6.048),
-                    int(h* 6.048))
+    (x, y, w, h) = (int(x),
+                    int(y),
+                    int(w),
+                    int(h))
 
     pt1 = (x, y)
     pt2 = (x + w, y + h)
     cv.rectangle(img, pt1, pt2, (0, 255, 0), 4)
 
 
-def pTransform(img, src_pts, pts):
-    x = int(cv.minAreaRect(pts)[0][0] * 6.048)
-    y = int(cv.minAreaRect(pts)[0][1] * 6.048)
-    h = int(cv.minAreaRect(pts)[1][0] * 6.048)
-    w = int(cv.minAreaRect(pts)[1][1] * 6.048)
+def pTransform(img, src_pts, pts, resizeScale = 1):
+    h = int(cv.minAreaRect(pts)[1][0] * resizeScale)
+    w = int(cv.minAreaRect(pts)[1][1] * resizeScale)
 
     p_ltop = [0, 0]
     p_rtop = [w - 1, 0]
@@ -42,13 +40,15 @@ def pTransform(img, src_pts, pts):
     p_rlow = [w - 1, h - 1]
 
     src_pts = np.array(src_pts).astype(np.float32)
+    #원본 이미지에서 추적된 4점입니다.
     dst_pts = np.array([p_ltop, p_rtop, p_llow, p_rlow]).astype(np.float32)
+    #minAreaRect의 모양대로 perspective warping을 하기 위한 목표가 되는 직사각형의 네 모서리 좌표들입니다.
 
     pers_mat = cv.getPerspectiveTransform(src_pts, dst_pts)
 
     dst = cv.warpPerspective(img, pers_mat, (w, h))
 
-    cv.imshow('dst_pers', dst)
+    return dst
 
 
 # https://github.com/ashay36/Document-Scanner/blob/master/document_scanner.py
@@ -97,21 +97,24 @@ def step1(src, dst): # 자동으로 사각형의 4 모서리를 찾아 장방형
         if vtc == 4:
             # print(approx)
 
-            setRect(dst, pts)#Test용 직사각형
-            print(origin.shape[1]/resizeW)
-            approx = np.multiply(approx, 6.048)
+
+            resizeToOriginVal = origin.shape[1]/resizeW
+            print('ddd', resizeToOriginVal)
+            approx = np.multiply(approx, resizeToOriginVal)
             approx = np.array(approx, dtype=int)
+            #원본의 전처리를 위해 사이즈를 줄였고 그 영상에서 4점의 좌표를 얻었습니다.
+            #원본 사진을 perspective warping하기 위해 그 점들을 원본좌표의 스케일로 좌표들을 변환해줍니다.
 
             #print('app1', origin.shape[1] / resizeW)
 
-            print('app', approx)
-
-            pTransform(dst, approx, pts)
-
+            sccanedObject = pTransform(origin, approx, pts, resizeScale= 1)#DP알고리즘에 의해 근사화된 4점과 피사체를 둘러싸고 있는 minAreaRec()의 4점을 perspective warp해줍니다.
+            setRect(dst, approx)  # Test용 직사각형
             for i in range(4):
-                cv.circle(dst, (approx[i][0], approx[i][1]), 10, (255, 0, 0), 3)
+                cv.circle(origin, (approx[i][0], approx[i][1]), 10, (255, 0, 0), 3)
 
             print('find rectangular')
+
+            cv.imshow('sccanedObject',sccanedObject)
             break
 
 
